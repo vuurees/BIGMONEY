@@ -1,22 +1,41 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    Rigidbody myRB;
-    Camera playerCam;
+    
+    
 
     Vector2 camRotation;
 
 
+    //Movement
+    Rigidbody myRB;
     public float speed = 10.0f;
     public float jumpHeight = 5.0f;
+    public float grounddetectdistance = 1;
 
+     //Sprint
+     public float sprintMulitplyer = 2.5f;
+     public Boolean sprintMode = false;
+     public Boolean ToggleSprint = true;
+
+     //Crouch
+     public Boolean isCrouching = false;
+
+     //Prone
+     public Boolean isProne = false;
+
+    //Camera
+    Camera playerCam;
     public float mouseSensitivity = 2.0f;
     public float Xsensitivity = 2f;
     public float Ysensitivity = 2f;
     public float camRotationLimit = 90f;
+    public float fieldofview = 90f;
+
 
     // Start is called before the first frame update
     void Start()
@@ -49,12 +68,19 @@ public class PlayerController : MonoBehaviour
         temp.x = Input.GetAxisRaw("Horizontal") * speed;
         temp.z = Input.GetAxisRaw("Vertical") * speed;
 
-       
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.LeftShift))
+            sprintMode = true;
+        if (Input.GetKeyUp(KeyCode.LeftShift))
+            sprintMode = false;
+
+
+        if (Input.GetKeyDown(KeyCode.Space) && Physics.Raycast(transform.position, -transform.up, grounddetectdistance))
             temp.y = jumpHeight;
 
       
         myRB.velocity = (transform.forward * temp.z) + (transform.right * temp.x) + (transform.up * temp.y);
+
+
     }
 
 }
