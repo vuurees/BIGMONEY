@@ -27,6 +27,11 @@ public class PlayerController : MonoBehaviour
     public float Xsensitivity = 2.0f;
     public float Ysensitivity = 2.0f;
     public float camRotationLimit = 90f;
+
+    [Header("Player Stats")]
+    public int maxHealth = 5;
+    public int health = 5;
+
     // Start is called before the first frame update
     void Start()
     {
