@@ -2,99 +2,53 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using UnityEditor;
 
-public class PlayerController : MonoBehaviour
+public class AdvancedMovement : MonoBehaviour
 {
-    private Rigidbody myRB;
-    Camera PlayerCam;
+    public float moveSpeed = 6f;
+    public float jumpForce = 5f;
+    public float runMultiplyer;
+    public float gravity = -9.81f;
 
-    Vector2 camRotation;
-
-    public bool sprintMode = false;
-
+    private Vector3 velocity;
+    private Rigidbody rb;
     private bool isGrounded;
-    public int doubleJump = 0;
-    [Header("Movement Settings")]
-    public float speed = 10.0f;
-    public float sprintMultiplier = 2.5f;
-    public float jumpHeight = 2.0f;
-    public float groundDetectDistance = 1.5f;
 
+    public Transform groundCheck;
+    public float groundDistance = 0.4f;
 
-    [Header("User Settings")]
-    public bool sprintToggleOption = false;
-    public float mouseSensitivity = 2.0f;
-    public float Xsensitivity = 2.0f;
-    public float Ysensitivity = 2.0f;
-    public float camRotationLimit = 90f;
+    public LayerMask groundMask;
 
-    [Header("Player Stats")]
-    public int maxHealth = 5;
-    public int health = 5;
-
-    // Start is called before the first frame update
-    void Start()
+     void Start()
     {
-        myRB = GetComponent<Rigidbody>();
-        PlayerCam = transform.GetChild(0).GetComponent<Camera>();
+        rb = GetComponent<Rigidbody>();
 
-        camRotation = Vector2.zero;
-        Cursor.visible = false;
-        Cursor.lockState = CursorLockMode.Locked;
     }
 
-    // Update is called once per frame
     void Update()
     {
-        isGrounded = Physics.Raycast(transform.position, -transform.up, groundDetectDistance);
-        camRotation.x += Input.GetAxisRaw("Mouse X") * mouseSensitivity;
-        camRotation.y += Input.GetAxisRaw("Mouse Y") * mouseSensitivity;
-
-        camRotation.y = Mathf.Clamp(camRotation.y, -camRotationLimit, camRotationLimit);
-
-        PlayerCam.transform.localRotation = Quaternion.AngleAxis(camRotation.y, Vector3.left);
-        transform.localRotation = Quaternion.AngleAxis(camRotation.x, Vector3.up);
-
-        Vector3 temp = myRB.velocity;
-
-        if (!sprintToggleOption)
+        //check if player of ground
+        isGrounded = Physics.CheckCapsule(groundCheck.position, groundDistance, groundMask);
+        if (isGrounded && velocity.y < 0) 
         {
-            if (Input.GetKey(KeyCode.LeftShift))
-                sprintMode = true;
-
-            if (Input.GetKeyUp(KeyCode.LeftShift))
-                sprintMode = false;
+            velocity.y = -2f; 
+            
         }
 
-        if (sprintToggleOption)
-        {
-            if (Input.GetKeyDown(KeyCode.LeftShift) && Input.GetAxisRaw("Vertical") > 0)
-                sprintMode = true;
+        float moveX = Input.GetAxis("Horizontal");
+        float moveZ = Input.GetAxis("Vertical");
 
-            if (Input.GetAxisRaw("Vertical") <= 0)
-                sprintMode = false;
-        }
+        Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        float speed = moveSpeed * (Input.GetKey(KeyCode.LeftShift) ? runMultiplyer : 1f);
 
+        rb.MovePosition(rb.position + move * speed * Time.deltaTime);
 
+        if (Input.GetButtonDown("Jump") && isGrounded) ;
 
-        if (!sprintMode)
-            temp.x = Input.GetAxisRaw("Vertical") * speed;
+        velocity.y += gravity * Time.deltaTime;
 
-        if (sprintMode)
-            temp.x = Input.GetAxisRaw("Vertical") * speed * sprintMultiplier;
+        rb.MovePosition(rb.position + velocity * Time.deltaTime);
 
-        temp.z = Input.GetAxisRaw("Horizontal") * speed;
-
-
-        if (isGrounded)
-            doubleJump = 0;
-
-        if (Input.GetKeyDown(KeyCode.Space) && (isGrounded || doubleJump < 1))
-        {
-            temp.y = jumpHeight;
-            doubleJump += 1;
-        }
-
-        myRB.velocity = (temp.x * transform.forward) + (temp.z * transform.right) + (temp.y * transform.up);
     }
 }
