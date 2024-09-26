@@ -1,78 +1,206 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using System;
-using UnityEditor;
 
-public class AdvancedMovement : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-    public float moveSpeed = 6f;
-    public float sprintMultiplyer = 1.5f;
-    public float jumpForce = 5f;
-    public float gravity = -9.81f;
-    public float groundCheckOffset = 0.1f;
+    Rigidbody myRB;
+    Camera playerCam;
 
+    Transform cameraHolder;
 
+    Vector2 camRotation;
 
-    private Vector3 velocity;
-    private Rigidbody rb;
-    private bool isGrounded;
+    public Transform weaponSlot;
 
- 
-   // capsule collider parameters
-    public LayerMask groundMask;
-    private CapsuleCollider capsuleCollider;
+    [Header("Player Stats")]
+    public int maxHealth = 5;
+    public int health = 5;
+    public int healthRestore = 1;
 
+    [Header("Weapon Stats")]
+    public GameObject shot;
+    public float shotVel = 0;
+    public int weaponID = -1;
+    public int fireMode = 0;
+    public float fireRate = 0;
+    public float currentClip = 0;
+    public float clipSize = 0;
+    public float maxAmmo = 0;
+    public float currentAmmo = 0;
+    public float reloadAmt = 0;
+    public float bulletLifespan = 0;
+    public bool canFire = true;
+
+    [Header("Movement Settings")]
+    public float speed = 10.0f;
+    public float sprintMultiplier = 2.5f;
+    public bool sprintMode = false;
+    public float jumpHeight = 5.0f;
+    public float groundDetectDistance = 1f;
+
+    [Header("User Settings")]
+    public bool sprintToggleOption = false;
+    public float mouseSensitivity = 2.0f;
+    public float Xsensitivity = 2.0f;
+    public float Ysensitivity = 2.0f;
+    public float camRotationLimit = 90f;
+
+    // Start is called before the first frame update
     void Start()
     {
-        rb = GetComponent<Rigidbody>();
-        capsuleCollider = GetComponent<CapsuleCollider>(); // get the capsule collider componet 
+        myRB = GetComponent<Rigidbody>();
+        playerCam = Camera.main;
+        cameraHolder = transform.GetChild(0);
 
-
+        camRotation = Vector2.zero;
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
     }
 
+    // Update is called once per frame
     void Update()
     {
-        //check if player is grounded
-        CheckIfGrounded();
+        playerCam.transform.position = cameraHolder.position;
 
-        if (isGrounded && velocity.y < 0)
+        camRotation.x += Input.GetAxisRaw("Mouse X") * mouseSensitivity;
+        camRotation.y += Input.GetAxisRaw("Mouse Y") * mouseSensitivity;
+
+        camRotation.y = Mathf.Clamp(camRotation.y, -camRotationLimit, camRotationLimit);
+
+        playerCam.transform.rotation = Quaternion.Euler(-camRotation.y, camRotation.x, 0);
+        transform.localRotation = Quaternion.AngleAxis(camRotation.x, Vector3.up);
+
+        if (Input.GetMouseButton(0) && canFire && currentClip > 0 && weaponID >= 0)
         {
-            velocity.y = -2f; //reset velocity when grounded
+            GameObject s = Instantiate(shot, weaponSlot.position, weaponSlot.rotation);
+            s.GetComponent<Rigidbody>().AddForce(playerCam.transform.forward * shotVel);
+            Destroy(s, bulletLifespan);
+
+            canFire = false;
+            currentClip--;
+            StartCoroutine("cooldownFire");
         }
 
-        //get movement inputs
+        if (Input.GetKeyDown(KeyCode.R))
+            reloadClip();
 
-        float moveX = Input.GetAxis("Horizontal");
-        float moveZ = Input.GetAxis("Vertical");
+        Vector3 temp = myRB.velocity;
 
-        Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        float verticalMove = Input.GetAxisRaw("Vertical");
+        float horizontalMove = Input.GetAxisRaw("Horizontal");
 
-        float speed = moveSpeed * (Input.GetKey(KeyCode.LeftShift) ? sprintMultiplyer : 1f);
-
-        rb.MovePosition(rb.position + move * speed * Time.deltaTime);
-
-        //jump
-
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        if (!sprintToggleOption)
         {
-            velocity.y = Mathf.Sqrt(jumpForce * -2f * gravity); // jump
+            if (Input.GetKey(KeyCode.LeftShift))
+                sprintMode = true;
+
+            if (Input.GetKeyUp(KeyCode.LeftShift))
+                sprintMode = false;
         }
 
-        //gravity
-        velocity.y += gravity * Time.deltaTime;
-        rb.MovePosition(rb.position + velocity * Time.deltaTime);
+        if (sprintToggleOption)
+        {
+            if (Input.GetKey(KeyCode.LeftShift) && verticalMove > 0)
+                sprintMode = true;
+
+            if (verticalMove <= 0)
+                sprintMode = false;
+        }
+
+        temp.x = verticalMove * speed;
+        temp.z = horizontalMove * speed;
+
+        if (sprintMode)
+            temp.x *= sprintMultiplier;
+
+        if (Input.GetKeyDown(KeyCode.Space) && Physics.Raycast(transform.position, -transform.up, groundDetectDistance))
+            temp.y = jumpHeight;
+
+        myRB.velocity = (temp.x * transform.forward) + (temp.z * transform.right) + (temp.y * transform.up);
     }
-    void CheckIfGrounded()
+
+    private void OnTriggerEnter(Collider other)
     {
-         
+        if (other.gameObject.tag == "weapon")
+        {
+            other.gameObject.transform.SetPositionAndRotation(weaponSlot.position, weaponSlot.rotation);
 
-        //define the bottom and top points of the capsule for ground detection
-        Vector3 capsuleBottom = transform.position - Vector3.up * (capsuleCollider.height / 2f - capsuleCollider.radius)+Vector3.up * groundCheckOffset;
-        Vector3 capsuleTop = transform.position - Vector3.up * (capsuleCollider.height /2f - capsuleCollider.radius);
-        // check if the capsule is intersecting with any colliders on the groundmask layer
-        isGrounded = Physics.CheckCapsule(capsuleBottom, capsuleTop, capsuleCollider.radius * 0.9f, groundMask);
+            other.gameObject.transform.SetParent(weaponSlot);
 
+            switch (other.gameObject.name)
+            {
+                case "weapon1":
+
+                    weaponID = 0;
+                    shotVel = 10000;
+                    fireMode = 0;
+                    fireRate = 0.25f;
+                    currentClip = 20;
+                    clipSize = 20;
+                    maxAmmo = 400;
+                    currentAmmo = 200;
+                    reloadAmt = 20;
+                    bulletLifespan = 1;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if ((health < maxHealth) && collision.gameObject.tag == "healthPickup")
+        {
+            health += healthRestore;
+
+            if (health > maxHealth)
+                health = maxHealth;
+
+            Destroy(collision.gameObject);
         }
 
+        if ((currentAmmo < maxAmmo) && collision.gameObject.tag == "ammoPickup")
+        {
+            currentAmmo += reloadAmt;
+
+            if (currentAmmo > maxAmmo)
+                currentAmmo = maxAmmo;
+
+            Destroy(collision.gameObject);
+        }
     }
+
+    public void reloadClip()
+    {
+        if (currentClip >= clipSize)
+            return;
+
+        else
+        {
+            float reloadCount = clipSize - currentClip;
+
+            if (currentAmmo < reloadCount)
+            {
+                currentClip += currentAmmo;
+                currentAmmo = 0;
+                return;
+            }
+
+            else
+            {
+                currentClip += reloadCount;
+                currentAmmo -= reloadCount;
+                return;
+            }
+        }
+    }
+
+    IEnumerator cooldownFire()
+    {
+        yield return new WaitForSeconds(fireRate);
+        canFire = true;
+    }
+}
